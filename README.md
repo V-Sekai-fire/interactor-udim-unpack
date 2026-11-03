@@ -40,11 +40,6 @@ The built file is `<build dir>/udim`; rename it `udim.elf`. Do not commit the EL
 
 Run as `godot --headless --path <project> -s res://<script>.gd -- <args>` in a project where the `Sandbox` class is registered.
 
-## Measured (2026-11-03, Nutty Mapley SHINANO FBX)
-
-All 12 garment meshes sit in tile 1001 with UVs inside 0-1, so the unpack is a no-op there. The skirt has 11 UV islands (one of
-3,432 triangles) and no two islands overlap in UV space (0 shared pixels on a 2048 grid).
-
 ## CI
 
 `.github/workflows/guest.yml` builds `udim.elf` on a clean runner in single and double precision against a pinned
