@@ -1,0 +1,72 @@
+# udim.elf built from a clean runner, in single and double precision, against the pinned guest runtime and sysroot.
+# Each ELF is shape-checked (RISC-V, API names, .sandbox_variant size for its precision). A control then runs the same
+# check with the OTHER precision and must fail, so a check that passes everything cannot go green.
+# Not covered yet: running the gate in a sandbox host, and the translated-versus-interpreted byte check, because no
+# repository builds that host in CI yet.
+name: guest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GUEST_RUNTIME_SHA: 7f6492fcfa563ef9dce0b207bf0fd4c6746f6494
+
+jobs:
+  build:
+    name: udim.elf (${{ matrix.precision }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - precision: single
+            double_precision: "OFF"
+            other: double
+          - precision: double
+            double_precision: "ON"
+            other: single
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sysroot checkout (its pixi clang and lld)
+        uses: actions/checkout@v4
+        with:
+          repository: V-Sekai-fire/repository-riscv64-sysroot
+          path: weft/riscv64-sysroot
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          manifest-path: weft/riscv64-sysroot/pixi.toml
+      - name: Compiler on PATH
+        run: |
+          echo "$GITHUB_WORKSPACE/weft/riscv64-sysroot/.pixi/envs/default/bin" >> "$GITHUB_PATH"
+          sudo apt-get update -q
+          sudo apt-get install -y -q cmake ninja-build
+      - name: Guest runtime at the pinned commit
+        run: |
+          git init -q "$RUNNER_TEMP/guest-runtime"
+          git -C "$RUNNER_TEMP/guest-runtime" fetch -q --depth 1 https://github.com/V-Sekai-fire/contract-guest-runtime "$GUEST_RUNTIME_SHA"
+          git -C "$RUNNER_TEMP/guest-runtime" checkout -q FETCH_HEAD
+      - name: The compiler targets riscv64
+        run: clang++ --print-targets | grep -q riscv64
+      - name: Build udim.elf (${{ matrix.precision }})
+        run: |
+          cmake -S guest/udim -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DDOUBLE_PRECISION=${{ matrix.double_precision }} \
+            -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/weft/riscv64-sysroot/toolchain.cmake" \
+            -DSANDBOX_API="$RUNNER_TEMP/guest-runtime/vendor/sandbox-api"
+          cmake --build build
+          cp build/udim "udim-${{ matrix.precision }}.elf"
+      - name: Shape check
+        run: tests/check_elf.sh "udim-${{ matrix.precision }}.elf" ${{ matrix.precision }}
+      - name: Control (the other precision's check must fail)
+        run: "! tests/check_elf.sh \"udim-${{ matrix.precision }}.elf\" ${{ matrix.other }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: udim-elf-${{ matrix.precision }}-${{ github.sha }}
+          path: udim-${{ matrix.precision }}.elf

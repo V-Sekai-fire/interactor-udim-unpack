@@ -45,7 +45,13 @@ Run as `godot --headless --path <project> -s res://<script>.gd -- <args>` in a p
 All 12 garment meshes sit in tile 1001 with UVs inside 0-1, so the unpack is a no-op there. The skirt has 11 UV islands (one of
 3,432 triangles) and no two islands overlap in UV space (0 shared pixels on a 2048 grid).
 
+## CI
+
+`.github/workflows/guest.yml` builds `udim.elf` on a clean runner in single and double precision against a pinned
+contract-guest-runtime and the riscv64 sysroot, shape-checks each (`tests/check_elf.sh`), and runs a control: the other
+precision's check must fail. The ELFs are uploaded as artifacts.
+
 ## Not done
 
-No CI yet (a shipped ELF should come from a clean runner with a translated-versus-interpreted check). The `.sandbox_variant`
+Running the gate in a sandbox host, and the translated-versus-interpreted byte check (no repository builds that host in CI yet). Locally the `.sandbox_variant`
 size is confirmed only by the engine loading the ELF.
