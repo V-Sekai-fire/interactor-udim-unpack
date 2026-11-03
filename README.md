@@ -29,8 +29,10 @@ The guest keeps upstream's behaviour, boundary case included, and exposes three 
 
 `uvs` is `u, v` per corner; `counts` is the number of corners per polygon (3 for every triangle).
 
-The gate has a planted control: a check that cannot fail proves nothing, so `gate(1)` must report `FAIL`. CI does the same at the
-build level: the other precision's check must fail. The ELF is a build product, so it is not committed: ship the CI artifact.
+The gate is a known-answer check on a fixed mesh of six triangles. Its control is planted in the input: `gate(1)` moves one triangle a
+tile to the right and leaves the expected answer alone, so the real unpack returns a different tile and the gate must report `FAIL`.
+CI does the same at the build level with a real input: the other precision's ELF is checked and must fail. The ELF is a build
+product, so it is not committed: ship the CI artifact.
 
 ## Build, test, ship
 
