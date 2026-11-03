@@ -25,11 +25,12 @@ static Variant udim_unpack(PackedFloat32Array uvs, PackedInt32Array counts) {
 	return Variant(Array::make(Variant(PackedInt32Array(r.tiles)), Variant(PackedFloat32Array(r.uvs))));
 }
 
-// Known-answer gate. planted != 0 changes the expected tile of one case, so the gate must report FAIL.
+// Known-answer gate. The control is planted in the input: planted != 0 moves triangle B one tile to the right, so the real unpack
+// gives B tile 1003 where the expected answer stays 1002, and the gate must report FAIL. The expected answer is never edited.
 static Variant gate(int64_t planted) {
 	// Triangles: A in 1001, B in 1002, C in 1011, D over one tile (-1), E on the U=1 boundary with min 0.9995 (-> 1002),
 	// F in 1012.
-	const std::vector<float> uv = {
+	std::vector<float> uv = {
 		0.1f, 0.1f, 0.9f, 0.1f, 0.5f, 0.9f, // A
 		1.1f, 0.1f, 1.9f, 0.1f, 1.5f, 0.9f, // B
 		0.2f, 1.2f, 0.8f, 1.2f, 0.5f, 1.8f, // C
@@ -38,9 +39,11 @@ static Variant gate(int64_t planted) {
 		1.2f, 1.2f, 1.8f, 1.2f, 1.5f, 1.8f, // F
 	};
 	const std::vector<int32_t> counts = { 3, 3, 3, 3, 3, 3 };
-	std::vector<int32_t> expect = { 1001, 1002, 1011, -1, 1002, 1012 };
+	const std::vector<int32_t> expect = { 1001, 1002, 1011, -1, 1002, 1012 };
 	if (planted != 0) {
-		expect[1] = 1003;
+		for (int i = 6; i < 12; i += 2) {
+			uv[i] += 1.0f; // B's u: 1.1, 1.9, 1.5 -> 2.1, 2.9, 2.5
+		}
 	}
 	const udim::Result r = udim::unpack(uv, counts);
 	std::string line;
