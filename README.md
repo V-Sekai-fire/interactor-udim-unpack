@@ -1,15 +1,25 @@
 # interactor-udim-unpack
 
-`udim.elf`: the UDIM unpack algorithm of [V-Sekai/fbx-udim-unpack](https://github.com/V-Sekai/fbx-udim-unpack) (`UdimUnpack.cpp`,
-`CalculateUdimTile` and `CalculateUdimPart`) as a godot-sandbox guest, with no FBX SDK. It is independent of `usd.elf`.
+`udim.elf` unpacks UDIM tiles inside a godot-sandbox guest. It is the algorithm of
+[V-Sekai/fbx-udim-unpack](https://github.com/V-Sekai/fbx-udim-unpack) (`UdimUnpack.cpp`, `CalculateUdimTile` and
+`CalculateUdimPart`) with no FBX SDK, and it is independent of `usd.elf`. Give it UVs and the corner count of each polygon;
+it returns one tile id per polygon and the UVs folded back into 0-1.
 
-For each polygon it takes the UV bounding box. If the box fits in one tile, the tile id is `1001 + 10 * vPart + uPart`
-(1001 = U and V in 0-1, 1002 = one tile right, 1011 = one tile up). A polygon in a tile above 1001 has its UVs put back
-into 0-1 with `uv -= floor(uv)`. A polygon whose UV range is over one tile is not a UDIM polygon: tile `-1`, UVs untouched.
-A vertex stored just below an integer (within 0.001) while its polygon reaches past it is rounded into the next tile, as upstream does.
-Like upstream, that boundary case leaves the vertex itself at 0.9995 while its neighbours wrap, so the polygon's UVs are not re-centred.
+## Tile edges
 
-## API (one vmcall each)
+A UDIM tile id is the polygon's UV bounding box turned into a number, and the edges are where it gets hard.
+
+- If the box fits in one tile, the id is `1001 + 10 * vPart + uPart` (1001 = U and V in 0-1, 1002 = one tile right, 1011 = one tile up).
+  A polygon in a tile above 1001 has its UVs put back into 0-1 with `uv -= floor(uv)`.
+- If the UV range is over one tile, the polygon is not a UDIM polygon: tile `-1`, UVs untouched.
+- A vertex stored just below an integer (within 0.001) while its polygon reaches past it is rounded into the next tile, as upstream does.
+  Like upstream, that boundary case leaves the vertex itself at 0.9995 while its neighbours wrap, so the polygon's UVs are not re-centred.
+- A double-precision engine needs a double-precision guest (`.sandbox_variant` reads `SBXV 28000000`), so there are two builds.
+- The host marshaller refuses empty packed arrays inside a returned Array, which is why an error is a string.
+
+## The three calls
+
+The guest keeps upstream's behaviour, boundary case included, and exposes three calls (one vmcall each):
 
 | Call | Returns |
 |---|---|
@@ -17,10 +27,14 @@ Like upstream, that boundary case leaves the vertex itself at 0.9995 while its n
 | `udim_unpack(PackedFloat32Array uvs, PackedInt32Array counts)` | `[tiles, uvs]`: one tile id per polygon, UVs back in 0-1. On a count mismatch: `[error string]` |
 | `gate(int planted)` | `PASS: ...` for `planted == 0`; `planted != 0` must report `FAIL` (the planted control) |
 
-`uvs` is `u, v` per corner; `counts` is the number of corners per polygon (3 for every triangle). Empty packed arrays inside a
-returned Array are refused by the host marshaller, which is why an error is a string.
+`uvs` is `u, v` per corner; `counts` is the number of corners per polygon (3 for every triangle).
 
-## Build (macOS, the riscv64-sysroot toolchain)
+The gate has a planted control: a check that cannot fail proves nothing, so `gate(1)` must report `FAIL`. CI does the same at the
+build level: the other precision's check must fail. The ELF is a build product, so it is not committed: ship the CI artifact.
+
+## Build, test, ship
+
+**Build** (macOS, the riscv64-sysroot toolchain):
 
 ```
 cd <riscv64-sysroot checkout>
@@ -30,9 +44,9 @@ pixi exec -s clangxx -s lld -s cmake -s ninja -- sh -c 'cmake -S <this repo>/gue
 ```
 
 `-DDOUBLE_PRECISION=ON` is needed for a double-precision engine (check `.sandbox_variant` reads `SBXV 28000000`).
-The built file is `<build dir>/udim`; rename it `udim.elf`. Do not commit the ELF: ship the CI artifact.
+The built file is `<build dir>/udim`; rename it `udim.elf`. Do not commit the ELF.
 
-## Tests (`tests/`, Godot scripts run with the double editor)
+**Tests** (`tests/`, Godot scripts run with the double editor):
 
 - `udim_check.gd <udim.elf> <out.txt>`: loads the ELF, runs `gate(0)` (PASS), `gate(1)` (FAIL), a real call and a count mismatch.
 - `udim_fbx.gd <udim.elf> <model.fbx> <out.txt>`: tile histogram for every mesh of an FBX.
@@ -40,13 +54,9 @@ The built file is `<build dir>/udim`; rename it `udim.elf`. Do not commit the EL
 
 Run as `godot --headless --path <project> -s res://<script>.gd -- <args>` in a project where the `Sandbox` class is registered.
 
-## CI
-
-`.github/workflows/guest.yml` builds `udim.elf` on a clean runner in single and double precision against a pinned
+**CI:** `.github/workflows/guest.yml` builds `udim.elf` on a clean runner in single and double precision against a pinned
 contract-guest-runtime and the riscv64 sysroot, shape-checks each (`tests/check_elf.sh`), and runs a control: the other
 precision's check must fail. The ELFs are uploaded as artifacts.
 
-## Not done
-
-Running the gate in a sandbox host, and the translated-versus-interpreted byte check (no repository builds that host in CI yet). Locally the `.sandbox_variant`
-size is confirmed only by the engine loading the ELF.
+**Not done:** running the gate in a sandbox host, and the translated-versus-interpreted byte check (no repository builds that host in
+CI yet). Locally the `.sandbox_variant` size is confirmed only by the engine loading the ELF.
