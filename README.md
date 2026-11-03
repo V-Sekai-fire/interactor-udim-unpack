@@ -1,13 +1,11 @@
 # interactor-udim-unpack
 
-## Hook
-
 `udim.elf` unpacks UDIM tiles inside a godot-sandbox guest. It is the algorithm of
 [V-Sekai/fbx-udim-unpack](https://github.com/V-Sekai/fbx-udim-unpack) (`UdimUnpack.cpp`, `CalculateUdimTile` and
 `CalculateUdimPart`) with no FBX SDK, and it is independent of `usd.elf`. Give it UVs and the corner count of each polygon;
 it returns one tile id per polygon and the UVs folded back into 0-1.
 
-## Intrigue
+## Tile edges
 
 A UDIM tile id is the polygon's UV bounding box turned into a number, and the edges are where it gets hard.
 
@@ -19,7 +17,7 @@ A UDIM tile id is the polygon's UV bounding box turned into a number, and the ed
 - A double-precision engine needs a double-precision guest (`.sandbox_variant` reads `SBXV 28000000`), so there are two builds.
 - The host marshaller refuses empty packed arrays inside a returned Array, which is why an error is a string.
 
-## Decision
+## The three calls
 
 The guest keeps upstream's behaviour, boundary case included, and exposes three calls (one vmcall each):
 
@@ -34,7 +32,7 @@ The guest keeps upstream's behaviour, boundary case included, and exposes three 
 The gate has a planted control: a check that cannot fail proves nothing, so `gate(1)` must report `FAIL`. CI does the same at the
 build level: the other precision's check must fail. The ELF is a build product, so it is not committed: ship the CI artifact.
 
-## Exit
+## Build, test, ship
 
 **Build** (macOS, the riscv64-sysroot toolchain):
 
