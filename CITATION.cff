@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: If you use this guest, cite fbx-udim-unpack, whose UDIM tile rule it ports.
+title: udim.elf -- UDIM unpack for polygon UVs (sandbox guest)
+abstract: >-
+  The UDIM unpack algorithm of fbx-udim-unpack as a godot-sandbox guest, without
+  the FBX SDK. The host passes UVs and the corner count of each polygon; the guest
+  returns one UDIM tile id per polygon (1001 + 10 * vPart + uPart, or -1 when the
+  UV range is over one tile) and the UVs of polygons in a tile above 1001 put
+  back into 0-1. The guest has no filesystem, sockets or host objects.
+type: software
+authors:
+  - name: V-Sekai-fire
+license: MIT
+repository-code: https://github.com/V-Sekai-fire/interactor-udim-unpack
+references:
+  - type: software
+    title: fbx-udim-unpack
+    authors:
+      - name: Steve Streeting
+    repository-code: https://github.com/V-Sekai/fbx-udim-unpack
+    commit: 54ecf62dd981b1afc997845de137a82006c13bb2
+    license: MIT
+  - type: software
+    title: contract-guest-runtime (godot-sandbox guest API, vendor/sandbox-api)
+    authors:
+      - name: V-Sekai-fire
+    repository-code: https://github.com/V-Sekai-fire/contract-guest-runtime
+    commit: 7f6492fcfa563ef9dce0b207bf0fd4c6746f6494
